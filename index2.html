@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Boxcel Demo (2D/3D)</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #eef; }
+    canvas { display: block; }
+    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; }
+    #ui button { margin: 4px; font-size: 1.2em; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <button id="switch">切替 2D / 3D</button>
+  </div>
+  <canvas id="gameCanvas"></canvas>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/controls/OrbitControls.js';
+
+    const canvas = document.getElementById('gameCanvas');
+    const renderer = new THREE.WebGLRenderer({canvas});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xaadfff);
+
+    const camera3D = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const camera2D = new THREE.OrthographicCamera(-100, 100, 100, -100, 1, 1000);
+
+    const controls = new OrbitControls(camera3D, renderer.domElement);
+    controls.enableDamping = true;
+
+    // ground
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 200), new THREE.MeshBasicMaterial({color: 0x66aa66}));
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+
+    // Boxcel model
+    const body = new THREE.Mesh(new THREE.BoxGeometry(20,30,10), new THREE.MeshBasicMaterial({color:0x0000ff}));
+    const head = new THREE.Mesh(new THREE.BoxGeometry(20,10,20), new THREE.MeshBasicMaterial({color:0xffaaaa}));
+    head.position.y = 25;
+    const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(5,18,5), new THREE.MeshBasicMaterial({color:0xaaaaff}));
+    leftLeg.position.set(-7, -15, 0);
+    const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(5,18,5), new THREE.MeshBasicMaterial({color:0xaaaaff}));
+    rightLeg.position.set(7, -15, 0);
+    const boxcel = new THREE.Group();
+    boxcel.add(body, head, leftLeg, rightLeg);
+    boxcel.position.y = 25;
+    scene.add(boxcel);
+
+    camera3D.position.set(60, 80, 100);
+    camera3D.lookAt(0, 25, 0);
+    camera2D.position.set(100, 100, 100);
+    camera2D.lookAt(0, 25, 0);
+
+    let mode = '3D';
+    function animate() {
+      requestAnimationFrame(animate);
+      if(mode === '3D') {
+        controls.update();
+      }
+      renderer.render(scene, mode === '3D' ? camera3D : camera2D);
+    }
+    animate();
+
+    document.getElementById('switch').addEventListener('click', ()=>{
+      mode = (mode === '3D') ? '2D' : '3D';
+      if(mode === '2D') controls.enabled = false;
+      else controls.enabled = true;
+    });
+  </script>
+</body>
+</html>
