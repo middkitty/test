@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ジャンプ避けゲーム</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #eef; }
+  canvas { display: block; background: #99d; }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let player = { x: 50, y: canvas.height - 60, w: 50, h: 50, vy: 0, jumping: false };
+let obstacles = [];
+let score = 0;
+let gameOver = false;
+
+function spawnObstacle() {
+    let size = 50;
+    obstacles.push({ x: canvas.width, y: canvas.height - size, w: size, h: size });
+}
+setInterval(spawnObstacle, 1500);
+
+function jump() {
+    if (!player.jumping) {
+        player.vy = -15;
+        player.jumping = true;
+    }
+}
+
+window.addEventListener('keydown', e => { if(e.code === 'Space') jump(); });
+window.addEventListener('touchstart', jump);
+
+function update() {
+    if(gameOver) return;
+
+    player.vy += 0.7;
+    player.y += player.vy;
+    if(player.y > canvas.height - player.h) {
+        player.y = canvas.height - player.h;
+        player.vy = 0;
+        player.jumping = false;
+    }
+
+    obstacles.forEach(obs => { obs.x -= 6; });
+    obstacles = obstacles.filter(obs => obs.x + obs.w > 0);
+
+    obstacles.forEach(obs => {
+        if(player.x < obs.x + obs.w && player.x + player.w > obs.x &&
+           player.y < obs.y + obs.h && player.y + player.h > obs.y) {
+            gameOver = true;
+        }
+    });
+
+    score += 1;
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = 'red';
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+
+    ctx.fillStyle = 'green';
+    obstacles.forEach(obs => ctx.fillRect(obs.x, obs.y, obs.w, obs.h));
+
+    ctx.fillStyle = 'black';
+    ctx.font = '24px sans-serif';
+    ctx.fillText('Score: ' + score, 20, 30);
+
+    if(gameOver){
+        ctx.fillStyle = 'black';
+        ctx.font = '48px sans-serif';
+        ctx.fillText('Game Over', canvas.width/2 - 120, canvas.height/2);
+    }
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
