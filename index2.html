@@ -2,74 +2,144 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Boxcel Demo (2D/3D)</title>
+  <title>Boxcel 歩行デモ（ログ表示付き）</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #eef; }
-    canvas { display: block; }
-    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; }
-    #ui button { margin: 4px; font-size: 1.2em; }
+    body { margin:0; overflow:hidden; }
+    canvas { display:block; }
+    #ui { position:absolute; top:10px; left:10px; z-index:10; }
+    #ui button { margin:2px; }
+    #log { position:absolute; bottom:0; left:0; width:100%; max-height:150px; 
+           background:rgba(0,0,0,0.6); color:#0f0; font-size:12px; overflow-y:auto; 
+           font-family:monospace; padding:4px; box-sizing:border-box; }
   </style>
 </head>
 <body>
   <div id="ui">
-    <button id="switch">切替 2D / 3D</button>
+    <button id="switch">切替 2D/3D</button>
   </div>
+  <div id="log"></div>
   <canvas id="gameCanvas"></canvas>
 
   <script type="module">
     import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
-    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/controls/OrbitControls.js';
 
     const canvas = document.getElementById('gameCanvas');
-    const renderer = new THREE.WebGLRenderer({canvas});
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // 🔹 画面上ログ関数
+    const logDiv = document.getElementById('log');
+    function log(msg){
+      logDiv.innerText += msg + "\n";
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    log('デモ開始');
+
+    let mode = '2D';
+    const scene = new THREE.Scene();
+
+    const modelHeight = 50;
+    const camera2D = new THREE.OrthographicCamera(-modelHeight*2, modelHeight*2, modelHeight*2, -modelHeight*2, 0.1, 1000);
+    const camera3D = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({canvas, alpha:true});
     renderer.setSize(window.innerWidth, window.innerHeight);
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xaadfff);
-
-    const camera3D = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
-    const camera2D = new THREE.OrthographicCamera(-100, 100, 100, -100, 1, 1000);
-
-    const controls = new OrbitControls(camera3D, renderer.domElement);
-    controls.enableDamping = true;
-
-    // ground
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 200), new THREE.MeshBasicMaterial({color: 0x66aa66}));
-    ground.rotation.x = -Math.PI / 2;
+    // 🔹 フィールド
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000,200), new THREE.MeshBasicMaterial({color:0x88cc88}));
+    ground.rotation.x = -Math.PI/2;
     scene.add(ground);
 
-    // Boxcel model
-    const body = new THREE.Mesh(new THREE.BoxGeometry(20,30,10), new THREE.MeshBasicMaterial({color:0x0000ff}));
-    const head = new THREE.Mesh(new THREE.BoxGeometry(20,10,20), new THREE.MeshBasicMaterial({color:0xffaaaa}));
-    head.position.y = 25;
+    // 🔹 Boxcelモデル
+    const boxcelModel = new THREE.Group();
+    const clothes = new THREE.Mesh(new THREE.BoxGeometry(20,30,10), new THREE.MeshBasicMaterial({color:0x0000ff}));
+    clothes.position.y = 40;
+    const hair = new THREE.Mesh(new THREE.BoxGeometry(20,10,20), new THREE.MeshBasicMaterial({color:0xff0000}));
+    hair.position.y = 60;
+    const leftArm = new THREE.Mesh(new THREE.BoxGeometry(5,20,5), new THREE.MeshBasicMaterial({color:0xffaaaa}));
+    leftArm.position.set(-12,45,0);
+    const rightArm = new THREE.Mesh(new THREE.BoxGeometry(5,20,5), new THREE.MeshBasicMaterial({color:0xffaaaa}));
+    rightArm.position.set(12,45,0);
     const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(5,18,5), new THREE.MeshBasicMaterial({color:0xaaaaff}));
-    leftLeg.position.set(-7, -15, 0);
+    leftLeg.position.set(-7, 18, 0);
     const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(5,18,5), new THREE.MeshBasicMaterial({color:0xaaaaff}));
-    rightLeg.position.set(7, -15, 0);
-    const boxcel = new THREE.Group();
-    boxcel.add(body, head, leftLeg, rightLeg);
-    boxcel.position.y = 25;
-    scene.add(boxcel);
+    rightLeg.position.set(7, 18, 0);
+    boxcelModel.add(clothes, hair, leftArm, rightArm, leftLeg, rightLeg);
+    boxcelModel.scale.set(1,1,0.5);
+    scene.add(boxcelModel);
 
-    camera3D.position.set(60, 80, 100);
-    camera3D.lookAt(0, 25, 0);
-    camera2D.position.set(100, 100, 100);
-    camera2D.lookAt(0, 25, 0);
+    // 🔹 プレイヤー移動
+    const playerSpeed = 2;
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.key] = true);
+    window.addEventListener('keyup', e => keys[e.key] = false);
 
-    let mode = '3D';
-    function animate() {
-      requestAnimationFrame(animate);
-      if(mode === '3D') {
-        controls.update();
+    // 🔹 歩行アニメーション
+    let walkCycle = 0;
+    function updateWalkAnimation(isMoving){
+      if(isMoving){
+        walkCycle += 0.2;
+        const swing = Math.sin(walkCycle) * 0.6;
+        leftArm.rotation.x = swing;
+        rightArm.rotation.x = -swing;
+        leftLeg.rotation.x = -swing;
+        rightLeg.rotation.x = swing;
+        log(`歩行サイクル: ${walkCycle.toFixed(2)}`);
+      } else {
+        leftArm.rotation.x = rightArm.rotation.x = 0;
+        leftLeg.rotation.x = rightLeg.rotation.x = 0;
+        walkCycle = 0;
       }
-      renderer.render(scene, mode === '3D' ? camera3D : camera2D);
+    }
+
+    // 🔹 カメラ更新
+    function update2DCamera(){
+      const offset = new THREE.Vector3(0,50,100);
+      camera2D.position.copy(boxcelModel.position.clone().add(offset));
+      camera2D.lookAt(boxcelModel.position.x,0,0);
+    }
+    function update3DCamera(){
+      const offset = new THREE.Vector3(0,120,100);
+      camera3D.position.copy(boxcelModel.position.clone().add(offset));
+      camera3D.lookAt(boxcelModel.position);
+    }
+
+    // 🔹 アニメーションループ
+    function animate(){
+      requestAnimationFrame(animate);
+      let moving = false;
+      if(keys['ArrowRight']) { boxcelModel.position.x += playerSpeed; moving = true; log('右移動'); }
+      if(keys['ArrowLeft']) { boxcelModel.position.x -= playerSpeed; moving = true; log('左移動'); }
+
+      if(mode==='3D') boxcelModel.rotation.y += 0.01;
+
+      updateWalkAnimation(moving);
+
+      if(mode==='2D') update2DCamera();
+      else update3DCamera();
+
+      renderer.render(scene, mode==='2D'?camera2D:camera3D);
     }
     animate();
 
+    // UI操作
     document.getElementById('switch').addEventListener('click', ()=>{
-      mode = (mode === '3D') ? '2D' : '3D';
-      if(mode === '2D') controls.enabled = false;
-      else controls.enabled = true;
+      mode = mode==='2D'?'3D':'2D';
+      if(mode==='2D') boxcelModel.rotation.y = 0;
+      log(`モード切替: ${mode}`);
+    });
+
+    // リサイズ対応
+    window.addEventListener('resize',()=>{
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera2D.left = -modelHeight*2;
+      camera2D.right = modelHeight*2;
+      camera2D.top = modelHeight*2;
+      camera2D.bottom = -modelHeight*2;
+      camera2D.updateProjectionMatrix();
+      camera3D.aspect = window.innerWidth/window.innerHeight;
+      camera3D.updateProjectionMatrix();
+      log('画面リサイズ');
     });
   </script>
 </body>
